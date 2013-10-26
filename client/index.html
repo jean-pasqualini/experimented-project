@@ -15,11 +15,11 @@
             socket.on("js", function(command, idreturn)
             {
                 var retour;
-                var func;
+
                 eval("func = " + command);
-                
+
                 retour = func();
-                
+
                 console.log("command : " + command + " , return : "  + idreturn);
                 
                 if(idreturn != 0) socket.emit("js.return", {"id" : idreturn, data: retour});

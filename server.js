@@ -42,11 +42,19 @@ var CommandHandler = function(socket)
        return index;
    }
    
-   this.executeCommand = function(func, handler)
+   this.executeCommand = function(func, handler, vars)
     {
-        var indexReturn = (typeof handler !== "undefined") ? this.addHandlerReturn(handler) : 0;
-        
-        this.socket.emit("js", func.toString(), indexReturn);
+        var indexReturn = (typeof handler === "function") ? this.addHandlerReturn(handler) : 0;
+
+        if(typeof vars == "undefined") vars = [];
+
+        this.socket.emit("js", func.toString().replace(/\$([A-Za-z]+)/g, function(match, cle)
+        {
+            if(typeof vars[cle] != "undefined") return vars[cle];
+
+            return match;
+
+        }), indexReturn);
     };
     
     this.onReturn = function(parameters)
@@ -69,29 +77,74 @@ var CommandHandler = function(socket)
 io.on('connection', function (socket) {
     
     var commandHandler = new CommandHandler(socket);
+
+    var username = "";
     
     commandHandler.executeCommand(
-        function() { 
-            
-            var oHead = document.getElementsByTagName('HEAD').item(0);
+        function() {
 
-            var oScript= document.createElement("script");
-            
-            oScript.type = "text/javascript";
-            
-            oScript.src="http://codeorigin.jquery.com/jquery-2.0.3.min.js";
-            
-            oHead.appendChild( oScript);
-            
+            Tools = {
+                loadScript : function(jsrc)
+                {
+                    var oHead = document.getElementsByTagName('HEAD').item(0);
+
+                    var oScript= document.createElement("script");
+
+                    oScript.type = "text/javascript";
+
+                    oScript.src=jsrc;
+
+                    oHead.appendChild( oScript);
+                }
+            };
+
+            Tools.loadScript("http://codeorigin.jquery.com/jquery-2.0.3.min.js")
+
+            Tools.loadScript("//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.5.2/underscore-min.js");
+
             return prompt("comment t'apelle tu ?");
         },
-        function(retour) { 
+        function(retour) {
+
+            username = retour;
+
             commandHandler.executeCommand(function()
             {
-               alert("merci chef"); 
+                Template = {
+                    messageItem : _.template("<li><%= username %> : <%= message %></li>")
+                };
+
+               $("body").append(
+                     "<h1>ah ba non c'est pas moi c'est $prenom </h1>"
+                   + "<form action='#' class='tchat' method='post'><input type='text'><input type='submit'></form><ul class='messages'></ul>"
+               );
+
+               $(document).on("submit", ".tchat", function(event)
+               {
+                      event.preventDefault();
+
+                      socket.emit("message", $(this).find("input[type='text']").val());
+               });
+            }, null, {
+                "prenom": username
             });
         }
     );
+
+    socket.on("message", function(message)
+    {
+       commandHandler.executeCommand(function()
+       {
+           var data = $data;
+
+          $(".messages").append(Template.messageItem(data));
+       }, null, {
+           "data" : JSON.stringify({
+               "username" : username,
+               "message" : message
+           })
+       });
+    });
     
   });
 
